@@ -997,7 +997,10 @@ Buffer(Buffer(0), 0, 0);
   'ucs2',
   'ucs-2',
   'utf16le',
-  'utf-16le' ].forEach(function(enc) {
+  'utf-16le',
+  'HEX',
+  'UTF-8',
+  'BaSe64' ].forEach(function(enc) {
     assert.equal(Buffer.isEncoding(enc), true);
   });
 
