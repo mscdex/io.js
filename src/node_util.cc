@@ -134,6 +134,17 @@ void StartSigintWatchdog(const FunctionCallbackInfo<Value>& args) {
 }
 
 
+static void GetConstructorName(const FunctionCallbackInfo<Value>& args) {
+  if (args.Length() == 0 || args[0]->IsNull() || args[0]->IsUndefined())
+    return;
+
+  Environment* env = Environment::GetCurrent(args);
+  Local<Object> obj = args[0]->ToObject(env->isolate());
+
+  args.GetReturnValue().Set(obj->GetConstructorName());
+}
+
+
 void StopSigintWatchdog(const FunctionCallbackInfo<Value>& args) {
   bool had_pending_signals = SigintWatchdogHelper::GetInstance()->Stop();
   args.GetReturnValue().Set(had_pending_signals);
@@ -187,6 +198,7 @@ void Initialize(Local<Object> target,
   env->SetMethod(target, "setHiddenValue", SetHiddenValue);
   env->SetMethod(target, "getPromiseDetails", GetPromiseDetails);
   env->SetMethod(target, "getProxyDetails", GetProxyDetails);
+  env->SetMethod(target, "getConstructorName", GetConstructorName);
 
   env->SetMethod(target, "startSigintWatchdog", StartSigintWatchdog);
   env->SetMethod(target, "stopSigintWatchdog", StopSigintWatchdog);

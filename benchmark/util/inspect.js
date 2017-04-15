@@ -3,7 +3,7 @@ var util = require('util');
 
 var common = require('../common.js');
 
-var bench = common.createBenchmark(main, {n: [5e6]});
+var bench = common.createBenchmark(main, {n: [10e4]});
 
 function main(conf) {
   var n = conf.n | 0;
