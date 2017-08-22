@@ -64,6 +64,10 @@ class StreamWrap : public HandleWrap, public StreamBase {
     return stream_;
   }
 
+  inline uv_buf_t buffer() const {
+    return buf_;
+  }
+
   inline bool is_named_pipe() const {
     return stream()->type == UV_NAMED_PIPE;
   }
@@ -82,6 +86,11 @@ class StreamWrap : public HandleWrap, public StreamBase {
              v8::Local<v8::Object> object,
              uv_stream_t* stream,
              AsyncWrap::ProviderType provider);
+  StreamWrap(Environment* env,
+             v8::Local<v8::Object> object,
+             uv_stream_t* stream,
+             AsyncWrap::ProviderType provider,
+             uv_buf_t buf);
 
   ~StreamWrap() {
   }
@@ -104,10 +113,6 @@ class StreamWrap : public HandleWrap, public StreamBase {
   static void OnRead(uv_stream_t* handle,
                      ssize_t nread,
                      const uv_buf_t* buf);
-  static void OnReadCommon(uv_stream_t* handle,
-                           ssize_t nread,
-                           const uv_buf_t* buf,
-                           uv_handle_type pending);
   static void AfterWrite(uv_write_t* req, int status);
   static void AfterShutdown(uv_shutdown_t* req, int status);
 
@@ -120,6 +125,7 @@ class StreamWrap : public HandleWrap, public StreamBase {
                          void* ctx);
 
   uv_stream_t* const stream_;
+  uv_buf_t buf_;
 };
 
 

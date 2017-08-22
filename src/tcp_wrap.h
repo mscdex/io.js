@@ -47,6 +47,7 @@ class TCPWrap : public ConnectionWrap<TCPWrap, uv_tcp_t> {
   friend void GetSockOrPeerName(const v8::FunctionCallbackInfo<v8::Value>&);
 
   TCPWrap(Environment* env, v8::Local<v8::Object> object);
+  TCPWrap(Environment* env, v8::Local<v8::Object> object, uv_buf_t buf);
   ~TCPWrap();
 
   static void New(const v8::FunctionCallbackInfo<v8::Value>& args);

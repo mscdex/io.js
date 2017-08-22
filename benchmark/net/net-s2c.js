@@ -7,6 +7,7 @@ var PORT = common.PORT;
 var bench = common.createBenchmark(main, {
   len: [102400, 1024 * 1024 * 16],
   type: ['utf', 'asc', 'buf'],
+  recvbuf: [0, 16 * 1024],
   dur: [5]
 });
 
@@ -15,11 +16,16 @@ var len;
 var type;
 var chunk;
 var encoding;
+var recvbuf;
+var received = 0;
 
 function main(conf) {
   dur = +conf.dur;
   len = +conf.len;
   type = conf.type;
+  var recvbufsize = +conf.recvbuf;
+  if (isFinite(recvbufsize) && recvbufsize > 0)
+    recvbuf = Buffer.alloc(recvbufsize);
 
   switch (type) {
     case 'buf':
@@ -43,12 +49,11 @@ function main(conf) {
 var net = require('net');
 
 function Writer() {
-  this.received = 0;
   this.writable = true;
 }
 
 Writer.prototype.write = function(chunk, encoding, cb) {
-  this.received += chunk.length;
+  received += chunk.length;
 
   if (typeof encoding === 'function')
     encoding();
@@ -88,7 +93,20 @@ Reader.prototype.pipe = function(dest) {
 
 function server() {
   var reader = new Reader();
-  var writer = new Writer();
+  var writer;
+  var socketOpts;
+  if (recvbuf === undefined) {
+    writer = new Writer();
+    socketOpts = { port: PORT };
+  } else {
+    socketOpts = {
+      port: PORT,
+      buffer: recvbuf,
+      onread: function(nread, buf) {
+        received += nread;
+      }
+    };
+  }
 
   // the actual benchmark.
   var server = net.createServer(function(socket) {
@@ -96,14 +114,15 @@ function server() {
   });
 
   server.listen(PORT, function() {
-    var socket = net.connect(PORT);
+    var socket = net.connect(socketOpts);
     socket.on('connect', function() {
       bench.start();
 
-      socket.pipe(writer);
+      if (recvbuf === undefined)
+        socket.pipe(writer);
 
       setTimeout(function() {
-        var bytes = writer.received;
+        var bytes = received;
         var gbits = (bytes * 8) / (1024 * 1024 * 1024);
         bench.end(gbits);
         process.exit(0);

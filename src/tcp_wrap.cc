@@ -132,7 +132,15 @@ void TCPWrap::New(const FunctionCallbackInfo<Value>& args) {
   // normal function.
   CHECK(args.IsConstructCall());
   Environment* env = Environment::GetCurrent(args);
-  new TCPWrap(env, args.This());
+
+  if (args.Length() > 0 && Buffer::HasInstance(args[0])) {
+    uv_buf_t buf;
+    buf.base = Buffer::Data(args[0]);
+    buf.len = Buffer::Length(args[0]);
+    new TCPWrap(env, args.This(), buf);
+  } else {
+    new TCPWrap(env, args.This());
+  }
 }
 
 
@@ -140,6 +148,18 @@ TCPWrap::TCPWrap(Environment* env, Local<Object> object)
     : ConnectionWrap(env,
                      object,
                      AsyncWrap::PROVIDER_TCPWRAP) {
+  int r = uv_tcp_init(env->event_loop(), &handle_);
+  CHECK_EQ(r, 0);  // How do we proxy this error up to javascript?
+                   // Suggestion: uv_tcp_init() returns void.
+  UpdateWriteQueueSize();
+}
+
+
+TCPWrap::TCPWrap(Environment* env, Local<Object> object, uv_buf_t buf)
+    : ConnectionWrap(env,
+                     object,
+                     AsyncWrap::PROVIDER_TCPWRAP,
+                     buf) {
   int r = uv_tcp_init(env->event_loop(), &handle_);
   CHECK_EQ(r, 0);  // How do we proxy this error up to javascript?
                    // Suggestion: uv_tcp_init() returns void.

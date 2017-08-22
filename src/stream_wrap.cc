@@ -96,6 +96,26 @@ StreamWrap::StreamWrap(Environment* env,
   set_after_write_cb({ OnAfterWriteImpl, this });
   set_alloc_cb({ OnAllocImpl, this });
   set_read_cb({ OnReadImpl, this });
+  buf_.base = nullptr;
+  buf_.len = 0;
+}
+
+
+StreamWrap::StreamWrap(Environment* env,
+                       Local<Object> object,
+                       uv_stream_t* stream,
+                       AsyncWrap::ProviderType provider,
+                       uv_buf_t buf)
+    : HandleWrap(env,
+                 object,
+                 reinterpret_cast<uv_handle_t*>(stream),
+                 provider),
+      StreamBase(env),
+      stream_(stream) {
+  set_after_write_cb({ OnAfterWriteImpl, this });
+  set_alloc_cb({ OnAllocImpl, this });
+  set_read_cb({ OnReadImpl, this });
+  buf_ = buf;
 }
 
 
@@ -174,8 +194,14 @@ void StreamWrap::OnAlloc(uv_handle_t* handle,
 
 
 void StreamWrap::OnAllocImpl(size_t size, uv_buf_t* buf, void* ctx) {
-  buf->base = node::Malloc(size);
-  buf->len = size;
+  StreamWrap* wrap = static_cast<StreamWrap*>(ctx);
+  const uv_buf_t wrapbuf = wrap->buffer();
+  if (wrapbuf.base != nullptr) {
+    *buf = wrapbuf;
+  } else {
+    buf->base = node::Malloc(size);
+    buf->len = size;
+  }
 }
 
 
@@ -208,24 +234,29 @@ void StreamWrap::OnReadImpl(ssize_t nread,
   Environment* env = wrap->env();
   HandleScope handle_scope(env->isolate());
   Context::Scope context_scope(env->context());
+  const uv_buf_t wrapbuf = wrap->buffer();
 
   Local<Object> pending_obj;
+  Local<Object> obj;
 
   if (nread < 0)  {
-    if (buf->base != nullptr)
+    if (buf->base != nullptr && wrapbuf.base == nullptr)
       free(buf->base);
     wrap->EmitData(nread, Local<Object>(), pending_obj);
     return;
   }
 
   if (nread == 0) {
-    if (buf->base != nullptr)
+    if (buf->base != nullptr && wrapbuf.base == nullptr)
       free(buf->base);
     return;
   }
 
-  CHECK_LE(static_cast<size_t>(nread), buf->len);
-  char* base = node::Realloc(buf->base, nread);
+  if (wrapbuf.base == nullptr) {
+    CHECK_LE(static_cast<size_t>(nread), buf->len);
+    char* base = node::Realloc(buf->base, nread);
+    obj = Buffer::New(env, base, nread).ToLocalChecked();
+  }
 
   if (pending == UV_TCP) {
     pending_obj = AcceptHandle<TCPWrap, uv_tcp_t>(env, wrap);
@@ -237,18 +268,22 @@ void StreamWrap::OnReadImpl(ssize_t nread,
     CHECK_EQ(pending, UV_UNKNOWN_HANDLE);
   }
 
-  Local<Object> obj = Buffer::New(env, base, nread).ToLocalChecked();
   wrap->EmitData(nread, obj, pending_obj);
 }
 
 
-void StreamWrap::OnReadCommon(uv_stream_t* handle,
-                              ssize_t nread,
-                              const uv_buf_t* buf,
-                              uv_handle_type pending) {
+void StreamWrap::OnRead(uv_stream_t* handle,
+                        ssize_t nread,
+                        const uv_buf_t* buf) {
   StreamWrap* wrap = static_cast<StreamWrap*>(handle->data);
   HandleScope scope(wrap->env()->isolate());
   Context::Scope context_scope(wrap->env()->context());
+  uv_handle_type type = UV_UNKNOWN_HANDLE;
+
+  if (wrap->is_named_pipe_ipc() &&
+      uv_pipe_pending_count(reinterpret_cast<uv_pipe_t*>(handle)) > 0) {
+    type = uv_pipe_pending_type(reinterpret_cast<uv_pipe_t*>(handle));
+  }
 
   // We should not be getting this callback if someone as already called
   // uv_close() on the handle.
@@ -262,22 +297,7 @@ void StreamWrap::OnReadCommon(uv_stream_t* handle,
     }
   }
 
-  static_cast<StreamBase*>(wrap)->OnRead(nread, buf, pending);
-}
-
-
-void StreamWrap::OnRead(uv_stream_t* handle,
-                        ssize_t nread,
-                        const uv_buf_t* buf) {
-  StreamWrap* wrap = static_cast<StreamWrap*>(handle->data);
-  uv_handle_type type = UV_UNKNOWN_HANDLE;
-
-  if (wrap->is_named_pipe_ipc() &&
-      uv_pipe_pending_count(reinterpret_cast<uv_pipe_t*>(handle)) > 0) {
-    type = uv_pipe_pending_type(reinterpret_cast<uv_pipe_t*>(handle));
-  }
-
-  OnReadCommon(handle, nread, buf, type);
+  static_cast<StreamBase*>(wrap)->OnRead(nread, buf, type);
 }
 
 

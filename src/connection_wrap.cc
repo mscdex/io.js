@@ -31,6 +31,18 @@ ConnectionWrap<WrapType, UVType>::ConnectionWrap(Environment* env,
 
 
 template <typename WrapType, typename UVType>
+ConnectionWrap<WrapType, UVType>::ConnectionWrap(Environment* env,
+                                                 Local<Object> object,
+                                                 ProviderType provider,
+                                                 uv_buf_t buf)
+    : StreamWrap(env,
+                 object,
+                 reinterpret_cast<uv_stream_t*>(&handle_),
+                 provider,
+                 buf) {}
+
+
+template <typename WrapType, typename UVType>
 void ConnectionWrap<WrapType, UVType>::OnConnection(uv_stream_t* handle,
                                                     int status) {
   WrapType* wrap_data = static_cast<WrapType*>(handle->data);
@@ -116,10 +128,22 @@ template ConnectionWrap<PipeWrap, uv_pipe_t>::ConnectionWrap(
     Local<Object> object,
     ProviderType provider);
 
+template ConnectionWrap<PipeWrap, uv_pipe_t>::ConnectionWrap(
+    Environment* env,
+    Local<Object> object,
+    ProviderType provider,
+    uv_buf_t buf);
+
 template ConnectionWrap<TCPWrap, uv_tcp_t>::ConnectionWrap(
     Environment* env,
     Local<Object> object,
     ProviderType provider);
+
+template ConnectionWrap<TCPWrap, uv_tcp_t>::ConnectionWrap(
+    Environment* env,
+    Local<Object> object,
+    ProviderType provider,
+    uv_buf_t buf);
 
 template void ConnectionWrap<PipeWrap, uv_pipe_t>::OnConnection(
     uv_stream_t* handle, int status);

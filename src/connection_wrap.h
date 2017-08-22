@@ -23,6 +23,10 @@ class ConnectionWrap : public StreamWrap {
   ConnectionWrap(Environment* env,
                  v8::Local<v8::Object> object,
                  ProviderType provider);
+  ConnectionWrap(Environment* env,
+                 v8::Local<v8::Object> object,
+                 ProviderType provider,
+                 uv_buf_t buf);
   ~ConnectionWrap() {
   }
 
